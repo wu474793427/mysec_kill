@@ -10,4 +10,6 @@ public interface OrderService {
     int createWrongOrder(int sid);
 
     int createOptimisticOrder(int sid);
+
+    int createPessimisticOrder(int sid);
 }

@@ -48,4 +48,11 @@
         AND sale = #{sale}
     </update>
 
+    <select id="selectByPrimaryKeyForUpdate" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock
+        where id = #{id}
+        FOR UPDATE
+    </select>
 </mapper>

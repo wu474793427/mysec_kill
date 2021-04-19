@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * @author wwz
@@ -46,6 +48,7 @@ public class OrderServiceImpl implements OrderService {
         int id = createOrder(stock);
         return stock.getCount() - (stock.getSale() + 1);
     }
+
     private void saleStockOptimistic(Stock stock){
         LOGGER.info("查询数据库，更新库存");
         //实际上在此校验版本 并不是真正的版本号，这里校验的是sale属性
@@ -54,6 +57,25 @@ public class OrderServiceImpl implements OrderService {
             throw new RuntimeException("并发更新库存失败，version不匹配");
         }
     }
+
+    @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRED)
+    @Override
+    public int createPessimisticOrder(int sid) {
+        //校验库存 （悲观锁 for update）
+        Stock stock = checkStockForUpdate(sid);
+        saleStock(stock);
+        int id = createOrder(stock);
+        return stock.getCount() - stock.getSale();
+    }
+    //检查库存
+    private Stock checkStockForUpdate(int sid){
+        Stock stock = stockService.getStockByIdForUpdate(sid);
+        if(stock.getSale().equals(stock.getCount())){
+            throw new RuntimeException("库存不足");
+        }
+        return stock;
+    }
+
 
 
 

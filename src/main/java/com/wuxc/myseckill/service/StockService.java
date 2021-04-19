@@ -13,4 +13,6 @@ public interface StockService {
     int updateStockById(Stock stock);
 
     int updateStockByOptimistic(Stock stock);
+
+    Stock getStockByIdForUpdate(int sid);
 }
