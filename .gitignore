@@ -4,9 +4,12 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 /target
-/mvnw
-/mvnw.cmd
-/myseckill.iml
+mvnw
+mvnw.cmd
+myseckill.iml
+.mvn
+
+
 ### STS ###
 .apt_generated
 .classpath

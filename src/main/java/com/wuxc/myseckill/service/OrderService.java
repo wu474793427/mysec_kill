@@ -12,4 +12,6 @@ public interface OrderService {
     int createOptimisticOrder(int sid);
 
     int createPessimisticOrder(int sid);
+
+    int createVerifiedOrder(Integer sid, Integer userId, String verifyHash) throws Exception;
 }

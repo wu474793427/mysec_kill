@@ -2,6 +2,7 @@ package com.wuxc.myseckill.controller;
 
 import com.google.common.util.concurrent.RateLimiter;
 import com.wuxc.myseckill.service.OrderService;
+import com.wuxc.myseckill.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author wwz
@@ -93,5 +95,72 @@ public class OrderController {
             return "购买失败，库存不足";
         }
         return String.format("购买成功，剩余库存为：%d", id);
+    }
+
+    @Autowired
+    UserService userService;
+    /**
+     * 获取验证码
+     */
+    @ResponseBody
+    @RequestMapping(value = "/getVerifyHash", method = {RequestMethod.GET})
+    public String getVerifyHash(@RequestParam(value = "sid") Integer sid,
+                                @RequestParam(value = "userId") Integer userId){
+        String hash;
+        try {
+            hash = userService.getVerifyHash(sid,userId);
+        }catch (Exception e){
+            LOGGER.error("获取验证HASH失败，原因[{}]",e.getMessage());
+            return "获取验证HASH失败";
+        }
+        return String.format("请求抢购验证hash值为:%s",hash);
+    }
+
+    /**
+     * 带验证的抢购接口
+     */
+    @GetMapping("/createOrderWithVerifiedUrl")
+    @ResponseBody
+    public String createOrderWithVerifiedUrl(@RequestParam(value = "sid") Integer sid,
+                                             @RequestParam(value = "userId") Integer userId,
+                                             @RequestParam(value = "verifyHash") String verifyHash){
+        int stockLeft;
+        try{
+            stockLeft = orderService.createVerifiedOrder(sid, userId, verifyHash);
+            LOGGER.info("购买成功，剩余库存为: [{}]", stockLeft);
+        }catch (Exception e){
+            LOGGER.error("购买失败：[{}]", e.getMessage());
+            return e.getMessage();
+        }
+        return String.format("购买成功，剩余库存为：%d", stockLeft);
+    }
+
+    /**
+     * 带HASH验证+ 单用户限制访问频率
+     * @param sid
+     * @param userId
+     * @param verifyHash
+     * @return
+     */
+    @ResponseBody
+    @GetMapping("/createOrderWithVerifiedUrlAndLimit")
+    public String createOrderWithVerifiedUrlAndLimit(@RequestParam(value = "sid") Integer sid,
+                                                     @RequestParam(value = "userId") Integer userId,
+                                                     @RequestParam(value = "verifyHash") String verifyHash){
+        int stockLeft;
+        try {
+            int count = userService.addUserCount(userId);
+            LOGGER.info("用户截至该次的访问次数为: [{}]", count);
+            boolean isBanned = userService.getUserIsBanned(userId);
+            if (isBanned) {
+                return "购买失败，超过频率限制";
+            }
+            stockLeft = orderService.createVerifiedOrder(sid, userId, verifyHash);
+            LOGGER.info("购买成功，剩余库存为: [{}]", stockLeft);
+        } catch (Exception e) {
+            LOGGER.error("购买失败：[{}]", e.getMessage());
+            return e.getMessage();
+        }
+        return String.format("购买成功，剩余库存为 %d",stockLeft);
     }
 }
