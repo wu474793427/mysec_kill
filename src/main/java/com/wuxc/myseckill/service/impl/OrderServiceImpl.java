@@ -141,6 +141,7 @@ public class OrderServiceImpl implements OrderService {
     }
     private int createOrder(Stock stock){
         StockOrder order = new StockOrder();
+
         order.setSid(stock.getId());
         order.setName(stock.getName());
         int id = orderMapper.insertSelective(order);

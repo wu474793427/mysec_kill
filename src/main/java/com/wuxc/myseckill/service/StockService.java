@@ -15,4 +15,10 @@ public interface StockService {
     int updateStockByOptimistic(Stock stock);
 
     Stock getStockByIdForUpdate(int sid);
+
+    int getStockCountByDB(int sid);
+
+    Integer getStockCount(int sid);
+
+    void delStockCountCache(int sid);
 }

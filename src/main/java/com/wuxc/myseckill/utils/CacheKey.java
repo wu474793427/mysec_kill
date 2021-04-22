@@ -7,7 +7,8 @@ package com.wuxc.myseckill.utils;
  */
 public enum CacheKey {
     HASH_KEY("MIAOSHA_HASH"),
-    LIMIT_KEY("MIAOSHA_LIMIT");
+    LIMIT_KEY("MIAOSHA_LIMIT"),
+    STOCK_COUNT("miaosha_v1_stock_count");
 
     private String key;
     private CacheKey(String key){

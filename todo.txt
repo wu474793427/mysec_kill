@@ -1,0 +1,7 @@
+2021年4月22日
+缓存与数据库双写问题
+更新/删除缓存 -》删除缓存
+删除缓存 ： 先删缓存再更新数据库 / 先更新数据库再删除缓存
+缓存与数据库一致性-》最终一致性的保证 不保证实时一致 CAP（AP）缓存满足A -》
+删除失败 ： 重试机制失败-》BINGLOG
+接入RabbitMq实现： this.rabbitTemplate.convertAndSend("delCache", message) -> DelCacheReceiver执行操作(Listen(delCache))

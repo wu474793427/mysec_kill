@@ -55,4 +55,11 @@
         where id = #{id}
         FOR UPDATE
     </select>
+
+    <select id="getStockCountByDB" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from stock
+        where id = #{id}
+    </select>
 </mapper>

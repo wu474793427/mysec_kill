@@ -19,4 +19,7 @@ public interface StockMapper {
 
     //对应的xml 中 for update 相当于对行记录加上行一个X锁 排他锁
     Stock selectByPrimaryKeyForUpdate(Integer id);
+
+    Stock getStockCountByDB(Integer id);
+
 }
