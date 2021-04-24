@@ -1,5 +1,6 @@
 package com.wuxc.myseckill.controller;
 
+import com.alibaba.fastjson.JSONObject;
 import com.google.common.util.concurrent.RateLimiter;
 import com.wuxc.myseckill.service.OrderService;
 import com.wuxc.myseckill.service.StockService;
@@ -264,7 +265,7 @@ public class OrderController {
     }
 
     /**
-     * 下单接口：先更新数据库，再删缓存，删除缓存重试机制
+     * 下单接口：先更新数据库，再删缓存，删除缓存失败重试，通知消息队列
      * @param sid
      * @return
      */
@@ -301,4 +302,71 @@ public class OrderController {
         LOGGER.info("这就去通知消息队列开始重试删除缓存：[{}]", message);
         this.rabbitTemplate.convertAndSend("delCache", message);
     }
+
+
+    /**
+     * 下单接口：异步订单处理
+     */
+    @ResponseBody
+    @RequestMapping(value = "/createUserOrderWithMq",method = {RequestMethod.GET})
+    public String createUserOrderWithMq(@RequestParam(value = "sid") Integer sid,
+                                        @RequestParam(value = "userId") Integer userId){
+        try {
+            Boolean hasOrder = orderService.checkUserOrderInfoInCache(sid, userId);
+            if(hasOrder != null && hasOrder){
+                LOGGER.info("该用户已经抢购过");
+                return "你已经抢购过了，不要太贪心.....";
+            }
+            //没有下单过
+            LOGGER.info("没有抢购过，检查缓存中商品是否还有库存");
+            Integer count = stockService.getStockCount(sid);
+            if (count == 0) {
+                return "秒杀请求失败，库存不足.....";
+            }
+            // 有库存，则将用户id和商品id封装为消息体传给消息队列处理
+            // 注意这里的有库存和已经下单都是缓存中的结论，存在不可靠性，在消息队列中会查表再次验证
+            LOGGER.info("有库存：[{}]",count);
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("sid",sid);
+            jsonObject.put("userId",userId);
+            sendToOrderQueue(jsonObject.toJSONString());
+            return "秒杀请求提交成功";
+        }catch (Exception e){
+            LOGGER.error("下单接口：异步处理订单异常",e);
+            return "秒杀请求失败，服务器正忙..........";
+        }
+    }
+    /**
+     * 向消息队列orderQueue发送消息
+     * @param message
+     */
+    private void sendToOrderQueue(String message) {
+        LOGGER.info("这就去通知消息队列开始下单：[{}]", message);
+        this.rabbitTemplate.convertAndSend("orderQueue", message);
+    }
+
+
+    /**
+     * 检查缓存中用户是否已经生成订单
+     * @param sid
+     * @return
+     */
+
+    @RequestMapping(value = "/checkOrderByUserIdInCache", method = {RequestMethod.GET})
+    @ResponseBody
+    public String checkOrderByUserIdInCache(@RequestParam(value = "sid") Integer sid,
+                                            @RequestParam(value = "userId") Integer userId) {
+        // 检查缓存中该用户是否已经下单过
+        try {
+            Boolean hasOrder = orderService.checkUserOrderInfoInCache(sid, userId);
+            if (hasOrder != null && hasOrder) {
+                return "恭喜您，已经抢购成功！";
+            }
+        } catch (Exception e) {
+            LOGGER.error("检查订单异常：", e);
+        }
+        return "很抱歉，你的订单尚未生成，继续排队吧您嘞。";
+    }
+
+
 }

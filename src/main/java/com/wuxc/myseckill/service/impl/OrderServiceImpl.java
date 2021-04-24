@@ -59,13 +59,14 @@ public class OrderServiceImpl implements OrderService {
         return stock.getCount() - (stock.getSale() + 1);
     }
 
-    private void saleStockOptimistic(Stock stock){
+    private boolean saleStockOptimistic(Stock stock){
         LOGGER.info("查询数据库，更新库存");
         //实际上在此校验版本 并不是真正的版本号，这里校验的是sale属性
         int count = stockService.updateStockByOptimistic(stock);
         if(count == 0){
             throw new RuntimeException("并发更新库存失败，version不匹配");
         }
+        return true;
     }
 
     @Transactional(rollbackFor = Exception.class,propagation = Propagation.REQUIRED)
@@ -116,6 +117,69 @@ public class OrderServiceImpl implements OrderService {
         return stock.getCount() - (stock.getSale()+1);
     }
 
+    @Override
+    public Boolean checkUserOrderInfoInCache(Integer sid, Integer userId) {
+        String key = CacheKey.USER_HAS_ORDER.getKey() + "_" + sid;
+        LOGGER.info("检查用户Id：[{}] 是否抢购过商品Id：[{}] 检查Key：[{}]", userId, sid, key);
+        return stringRedisTemplate.opsForSet().isMember(key, userId.toString());
+    }
+
+    /**
+     * 真正的基于MQ异步下单操作
+     * @param sid
+     * @param userId
+     */
+    @Override
+    public void createOrderByMq(Integer sid, Integer userId) throws Exception{
+        Stock stock;
+        try {
+            stock = checkStock(sid);
+        }catch (Exception e){
+            LOGGER.info("库存不足！");
+            return;
+        }
+        //乐观锁更新库存
+        boolean updateStock = saleStockOptimistic(stock);
+        if (!updateStock){
+            LOGGER.warn("扣库存失败，库存已经为0");
+            return;
+        }
+        LOGGER.info("扣库存成功，剩余库存为[{}]",stock.getCount() - stock.getSale());
+        stockService.delStockCountCache(sid);//删除缓存
+        LOGGER.info("删除库存缓存");
+
+        //创建订单
+        LOGGER.info("写入订单至数据库");
+        createOrderWithUserInfoInDB(stock,userId);
+        LOGGER.info("写入订单至缓存供查询");
+        //写入后，在外层接口便可以通过判断redis中是否存在用户和商品的抢购信息，来直接给用户返回“你已经抢购过”的消息。
+        createOrderWithUserInfoInCache(stock,userId);
+        LOGGER.info("下单完成");
+
+    }
+    /**
+     * 创建订单：保存用户订单信息到数据库
+     * @param stock
+     * @return
+     */
+    private int createOrderWithUserInfoInDB(Stock stock, Integer userId) {
+        StockOrder order = new StockOrder();
+        order.setSid(stock.getId());
+        order.setName(stock.getName());
+        order.setUserId(userId);
+        return orderMapper.insertSelective(order);
+    }
+    /**
+     * 创建订单：保存用户订单信息到缓存
+     * @param stock
+     * @return 返回添加的个数
+     */
+    private Long createOrderWithUserInfoInCache(Stock stock, Integer userId) throws Exception{
+        String key = CacheKey.USER_HAS_ORDER.getKey() + "_" + stock.getId().toString();
+        LOGGER.info("写入用户订单数据Set：[{}] [{}]", key, userId.toString());
+        return stringRedisTemplate.opsForSet().add(key, userId.toString());
+    }
+
     //检查库存
     private Stock checkStockForUpdate(int sid){
         Stock stock = stockService.getStockByIdForUpdate(sid);
@@ -135,6 +199,7 @@ public class OrderServiceImpl implements OrderService {
         }
         return stock;
     }
+
     private int saleStock(Stock stock){
         stock.setSale(stock.getSale() + 1);
         return stockService.updateStockById(stock);

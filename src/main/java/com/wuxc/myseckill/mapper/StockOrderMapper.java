@@ -11,5 +11,5 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface StockOrderMapper {
 
-    int insertSelective(StockOrder order);
+    int insertSelective(StockOrder record);
 }
